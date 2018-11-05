@@ -1,0 +1,17 @@
+# Generated bindings
+src/*.cpp
+src/*.hpp
+*.hpp
+
+# Misc
+logs/*
+
+# Binaries
+*.o
+*.os
+*.so
+*.obj
+*.pyc
+*.dblite
+*.pdb
+*.lib

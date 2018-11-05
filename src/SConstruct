@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+
+import os, sys
+
+
+def add_sources(sources, directory, extension = 'cpp'):
+  for f in os.listdir(directory):
+    if f.endswith('.' + extension):
+      sources.append(directory + '/' + f)
+
+
+# Try to detect the host platform automatically
+# This is used if no `platform` argument is passed
+if sys.platform.startswith('linux'):
+  host_platform = 'linux'
+elif sys.platform == 'darwin':
+  host_platform = 'osx'
+elif sys.platform == 'win32':
+  host_platform = 'windows'
+else:
+  raise ValueError('Could not detect platform automatically, please specify with platform=<platform>')
+
+opts = Variables([], ARGUMENTS)
+
+opts.Add(EnumVariable('platform', 'Target platform', host_platform, ('linux', 'osx', 'windows')))
+opts.Add(EnumVariable('bits', 'Target platform bits', 'default', ('default', '32', '64')))
+opts.Add(EnumVariable('target', 'Compilation target', 'debug', ('debug', 'release')))
+
+env = Environment()
+opts.Update(env)
+Help(opts.GenerateHelpText(env))
+
+# This makes sure to keep the session environment variables on Windows
+# This way, you can run SCons in a Visual Studio 2017 prompt and it will find all the required tools
+if env['platform'] == 'windows':
+  if env['bits'] == '64':
+    env = Environment(TARGET_ARCH='amd64')
+  elif env['bits'] == '32':
+    env = Environment(TARGET_ARCH='x86')
+  opts.Update(env)
+
+is64 = sys.maxsize > 2**32
+if env['bits'] == 'default':
+  env['bits'] = '64' if is64 else '32'
+
+final_lib_path = '../assets/lib/'
+if env['platform'] == 'linux':
+  env.Append(CCFLAGS=['-fPIC', '-g', '-O3', '-std=c++14'])
+  final_lib_path = final_lib_path + 'x11/'
+
+elif env['platform'] == 'osx':
+  env.Append(CCFLAGS=['-g', '-O3', '-arch', 'x86_64', '-std=c++14'])
+  env.Append(LINKFLAGS=['-arch', 'x86_64'])
+  final_lib_path = final_lib_path + 'osx/'
+
+elif env['platform'] == 'windows':
+  if env['target'] == 'debug':
+    env.Append(CCFLAGS=['-EHsc', '-D_DEBUG', '-MDd'])
+  else:
+    env.Append(CCFLAGS=['-O2', '-EHsc', '-DNDEBUG', '-MD'])
+  final_lib_path = final_lib_path + 'win' + env['bits'] + '/'
+
+env.Append(CPPPATH=['../include/godot'])
+env.Append(LIBPATH=["../lib", "../assets/lib"])
+env.Append(LIBS=["godot.{}.{}.{}".format(env['platform'], env['target'], env['bits'])])
+
+sources = []
+add_sources(sources, ".")
+
+library = env.SharedLibrary(target=final_lib_path + 'libengine', source=sources)
+Default(library)
